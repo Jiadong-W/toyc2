@@ -182,14 +182,19 @@ static bool analyze_stmt(Stmt* s, int cur_func_idx, const vector<FuncInfo>& glob
     const string &cur_ret_type) {
 
     if (!s) return true;
+
     switch (s->type) {
         case Stmt::BLOCK: {
             scopes.emplace_back(); // new inner scope
+            bool success = true;
             for (auto sub : s->block_stmts) {
-                if (!analyze_stmt(sub, cur_func_idx, global_funcs, scopes, myinfo, next_local_index, loop_depth, cur_line, cur_ret_type)) return false;
+                if (!analyze_stmt(sub, cur_func_idx, global_funcs, scopes, myinfo, next_local_index, loop_depth, cur_line, cur_ret_type)) {
+                    success = false;
+                    break;
+                }
             }
             scopes.pop_back();
-            return true;
+            return success;
         }
         case Stmt::EMPTY:
             return true;
@@ -211,8 +216,7 @@ static bool analyze_stmt(Stmt* s, int cur_func_idx, const vector<FuncInfo>& glob
             top[s->declare_id] = offset;
             myinfo.var_offset[s->declare_id] = offset;
             myinfo.stmt_lhs_offset[s] = offset;
-            if (!analyze_expr(s->declare_init, cur_func_idx, global_funcs, scopes, myinfo, loop_depth, cur_line, false)) return false;
-            return true;
+            return analyze_expr(s->declare_init, cur_func_idx, global_funcs, scopes, myinfo, loop_depth, cur_line, false);
         }
         case Stmt::ASSIGN: {
             if (!analyze_expr(s->assign_rhs, cur_func_idx, global_funcs, scopes, myinfo, loop_depth, cur_line, false)) return false;
