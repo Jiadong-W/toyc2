@@ -131,15 +131,21 @@ static bool analyze_expr(Expr* e, int cur_func_idx, const vector<FuncInfo>& glob
             return true;
         }
         case Expr::FUNC_CALL: {
-            // find function in global_funcs
-            int found = -1;
-            for (size_t i = 0; i < global_funcs.size(); ++i) {
-                if (global_funcs[i].name == e->call_name) { found = (int)i; break; }
+            // Precompute function name to index mapping for O(1) lookup
+            static unordered_map<string, int> func_name_to_idx;
+            if (func_name_to_idx.empty()) {
+                for (size_t i = 0; i < global_funcs.size(); ++i) {
+                    func_name_to_idx[global_funcs[i].name] = (int)i;
+                }
             }
-            if (found == -1) {
+
+            auto it = func_name_to_idx.find(e->call_name);
+            if (it == func_name_to_idx.end()) {
                 sem_error(cur_line, "call to undefined function: " + e->call_name);
                 return false;
             }
+            int found = it->second;
+
             // callee must be declared earlier or be self (support recursion)
             if (found > cur_func_idx) {
                 sem_error(cur_line, "call to function declared later: " + e->call_name + " (declaration must appear before call)");
@@ -151,7 +157,7 @@ static bool analyze_expr(Expr* e, int cur_func_idx, const vector<FuncInfo>& glob
                 return false;
             }
             // check each arg recursively; void-call rule applies only to containing expression context
-            for (auto arg: e->args) {
+            for (const auto& arg : e->args) {
                 if (!analyze_expr(arg, cur_func_idx, global_funcs, scopes, myinfo, loop_depth, cur_line, true)) return false;
             }
             // if this call appears in an expression context that disallows void results, check it:
@@ -161,6 +167,9 @@ static bool analyze_expr(Expr* e, int cur_func_idx, const vector<FuncInfo>& glob
             }
             return true;
         }
+        default:
+            sem_error(cur_line, "unknown expression type encountered");
+            return false;
     }
     return true;
 }
